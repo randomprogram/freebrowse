@@ -26,12 +26,14 @@ scene_schema_id = os.getenv('SCENE_SCHEMA_ID')
 imaging_extensions_str = os.getenv('IMAGING_EXTENSIONS', '["*.nii", "*.nii.gz"]')
 imaging_extensions = json.loads(imaging_extensions_str)
 serverless_mode = os.getenv('SERVERLESS_MODE', 'false').lower() == 'true'
+logout_url = os.getenv('LOGOUT_URL', '').strip() or None
 
 logger.info(f"NIIVUE_BUILD_DIR: {static_dir}")
 logger.info(f"DATA_DIR: {data_dir}")
 logger.info(f"SCENE_SCHEMA_ID: {scene_schema_id}")
 logger.info(f"IMAGING_EXTENSIONS: {imaging_extensions}")
 logger.info(f"SERVERLESS_MODE: {serverless_mode}")
+logger.info(f"LOGOUT_URL: {logout_url}")
 
 # Register the MIME type so that .gz files (or .nii.gz files) are served correctly.
 mimetypes.add_type("application/gzip", ".nii.gz", strict=True)
@@ -51,7 +53,8 @@ app = FastAPI()
 def get_config():
     """Return application configuration."""
     return {
-        "serverless": serverless_mode
+        "serverless": serverless_mode,
+        "logout_url": logout_url,
     }
 
 @app.get("/nvd")

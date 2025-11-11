@@ -19,6 +19,7 @@ import {
   Database,
   Undo,
   Download,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -89,6 +90,7 @@ export default function FreeBrowse() {
   const [activeTab, setActiveTab] = useState("nvds");
   const [footerOpen, setFooterOpen] = useState(true);
   const [serverlessMode, setServerlessMode] = useState(false);
+  const [logoutUrl, setLogoutUrl] = useState<string | null>(null);
   // Track whether config has been loaded to prevent race condition where
   // FileList components mount and fetch before serverlessMode is set
   const [configLoaded, setConfigLoaded] = useState(false);
@@ -329,6 +331,7 @@ export default function FreeBrowse() {
         if (response.ok) {
           const config = await response.json();
           setServerlessMode(config.serverless || false);
+          setLogoutUrl(config.logout_url || null);
           // If in serverless mode, switch to sceneDetails tab by default
           if (config.serverless) {
             setActiveTab("sceneDetails");
@@ -1720,6 +1723,18 @@ export default function FreeBrowse() {
             >
               <Settings className="h-4 w-4" />
             </Button>
+                        {logoutUrl && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.location.href = logoutUrl;
+                }}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                <span>Logout</span>
+              </Button>
+            )}
           </div>
         </div>
       </header>
