@@ -4,7 +4,9 @@ import mimetypes
 import logging
 import uuid
 import base64
+import fnmatch
 from pathlib import Path
+from typing import List
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -48,6 +50,47 @@ class SaveVolumeRequest(BaseModel):
 
 app = FastAPI()
 
+def _safe_directory_listing(base_dir: str, patterns: List[str], requested_path: str = ""):
+    """Return directory contents constrained to base_dir."""
+    base_path = Path(base_dir).resolve()
+    normalized_request = Path(requested_path or ".").as_posix().strip("/")
+    if normalized_request in ("", "."):
+        normalized_request = ""
+
+    target_path = (base_path / normalized_request).resolve()
+
+    # Prevent directory traversal outside of base_dir
+    if not str(target_path).startswith(str(base_path)):
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if not target_path.exists() or not target_path.is_dir():
+        raise HTTPException(status_code=404, detail="Directory not found")
+
+    directories = []
+    files = []
+
+    for entry in sorted(target_path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+        rel_path = entry.relative_to(base_path).as_posix()
+        if entry.is_dir():
+            directories.append({
+                "name": entry.name,
+                "path": rel_path,
+            })
+        elif entry.is_file():
+            matches_pattern = (not patterns)
+            if not matches_pattern:
+                matches_pattern = any(fnmatch.fnmatch(entry.name, pattern) for pattern in patterns)
+            if matches_pattern:
+                files.append({
+                    "filename": rel_path,
+                    "url": "data/" + rel_path,
+                })
+
+    return {
+        "currentPath": normalized_request,
+        "directories": directories,
+        "files": files,
+    }
+
 # Define API routes BEFORE static file mounts to prevent catch-all behavior
 @app.get("/config")
 def get_config():
@@ -58,43 +101,32 @@ def get_config():
     }
 
 @app.get("/nvd")
-def list_niivue_documents():
+def list_niivue_documents(path: str = ""):
     if serverless_mode:
         raise HTTPException(status_code=404, detail="Endpoint not available in serverless mode")
     nvd_dir = os.path.join(data_dir)
-    logger.debug(f"Looking for niivue documents (.nvd) files recursivly in {nvd_dir}")
-    nvd_files = []
+    logger.debug(f"Listing niivue documents (.nvd) within {nvd_dir} at path '{path}'")
     try:
-      for filepath in Path(nvd_dir).rglob('*.nvd'):
-        rel_filepath = str(filepath.relative_to(nvd_dir))
-        nvd_file = {
-            "filename": rel_filepath,
-            "url": "data/" + rel_filepath
-        }
-        nvd_files.append(nvd_file)
+        return _safe_directory_listing(nvd_dir, ['*.nvd'], path)
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}
-    return nvd_files
+        logger.error(f"Error listing niivue documents: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list niivue documents")
 
 @app.get("/imaging")
-def list_imaging_files():
+def list_imaging_files(path: str = ""):
     if serverless_mode:
         raise HTTPException(status_code=404, detail="Endpoint not available in serverless mode")
     imaging_dir = os.path.join(data_dir)
-    logger.debug(f"Looking for imaging files {imaging_extensions} recursively in {imaging_dir}")
-    imaging_files = []
+    logger.debug(f"Listing imaging files {imaging_extensions} within {imaging_dir} at path '{path}'")
     try:
-        for pattern in imaging_extensions:
-            for filepath in Path(imaging_dir).rglob(pattern):
-                rel_filepath = str(filepath.relative_to(imaging_dir))
-                imaging_file = {
-                    "filename": rel_filepath,
-                    "url": "data/" + rel_filepath
-                }
-                imaging_files.append(imaging_file)
+        return _safe_directory_listing(imaging_dir, imaging_extensions, path)
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}
-    return imaging_files
+        logger.error(f"Error listing imaging files: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list imaging files")
 
 @app.post("/nvd")
 def save_scene(request: SaveSceneRequest):
