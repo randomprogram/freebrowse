@@ -34,14 +34,27 @@ export const FileList: React.FC<FileListProps> = ({
   const [error, setError] = useState<string>('')
   const [currentPath, setCurrentPath] = useState<string>('')
   const [resolvedPath, setResolvedPath] = useState<string>('')
+  const [initialPathLoaded, setInitialPathLoaded] = useState<boolean>(false)
 
-  // Reset navigation when endpoint changes
+  const storageKey = useMemo(() => `file-list-path:${endpoint}`, [endpoint])
+
+  // Restore navigation path per endpoint once mounted
   useEffect(() => {
-    setCurrentPath('')
-    setResolvedPath('')
-  }, [endpoint])
+    if (typeof window === 'undefined') {
+      return
+    }
+    setInitialPathLoaded(false)
+    const storedPath = window.localStorage.getItem(storageKey) ?? ''
+    setCurrentPath(storedPath)
+    setResolvedPath(storedPath)
+    setInitialPathLoaded(true)
+  }, [storageKey])
 
   useEffect(() => {
+    if (!initialPathLoaded) {
+      return
+    }
+
     let isActive = true
     const controller = new AbortController()
 
@@ -55,7 +68,9 @@ export const FileList: React.FC<FileListProps> = ({
         const response = await fetch(url, { signal: controller.signal })
         console.log(`Fetching from ${url}:`, response)
         if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`)
+          const error = new Error(`HTTP error! Status: ${response.status}`)
+          ;(error as any).status = response.status
+          throw error
         }
         const data: DirectoryListingResponse | FileItem[] = await response.json()
         console.log(`Files from ${url}:`, data)
@@ -67,10 +82,17 @@ export const FileList: React.FC<FileListProps> = ({
           setDirectories([])
           setFiles(data)
           setResolvedPath(currentPath)
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(storageKey, currentPath)
+          }
         } else {
           setDirectories(data.directories ?? [])
           setFiles(data.files ?? [])
-          setResolvedPath(data.currentPath ?? currentPath)
+          const nextPath = data.currentPath ?? currentPath
+          setResolvedPath(nextPath)
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(storageKey, nextPath)
+          }
         }
       } catch (err: any) {
         if (!isActive || err.name === 'AbortError') {
@@ -78,6 +100,13 @@ export const FileList: React.FC<FileListProps> = ({
         }
         console.error(`Error fetching files from ${endpoint}:`, err)
         setError(err.message)
+        const status = err?.status
+        if (status === 404 && currentPath) {
+          setCurrentPath('')
+          if (typeof window !== 'undefined') {
+            window.localStorage.removeItem(storageKey)
+          }
+        }
       } finally {
         if (isActive) {
           setLoading(false)
@@ -91,7 +120,7 @@ export const FileList: React.FC<FileListProps> = ({
       isActive = false
       controller.abort()
     }
-  }, [endpoint, currentPath])
+  }, [endpoint, currentPath, storageKey, initialPathLoaded])
 
   const breadcrumbs = useMemo(() => {
     const parts = resolvedPath ? resolvedPath.split('/').filter(Boolean) : []
