@@ -232,7 +232,11 @@
             ></app-labeled-slider-with-input>
             <div class="field">
               <label>Colormap</label>
-              <select [value]="current.colormap" (change)="handleColormapChange(($event.target as HTMLSelectElement).value)">
+              <select
+                #colormapSelect
+                [value]="current.colormap"
+                (change)="handleColormapChange(colormapSelect.value)"
+              >
                 <option *ngFor="let map of colormaps" [value]="map">{{ map }}</option>
               </select>
             </div>
@@ -246,9 +250,10 @@
             <div class="field">
               <label>Filename</label>
               <input
+                #drawingFilenameInput
                 type="text"
                 [value]="drawingOptions.filename"
-                (input)="drawingOptions = { ...drawingOptions, filename: ($event.target as HTMLInputElement).value }"
+                (input)="handleDrawingFilenameChange(drawingFilenameInput.value)"
               />
             </div>
             <app-labeled-slider-with-input
@@ -261,7 +266,11 @@
             ></app-labeled-slider-with-input>
             <div class="field">
               <label>Draw mode</label>
-              <select [value]="drawingOptions.mode" (change)="handleDrawModeChange(($event.target as HTMLSelectElement).value as 'none' | 'pen' | 'wand')">
+              <select
+                #drawModeSelect
+                [value]="drawingOptions.mode"
+                (change)="handleDrawModeChange(drawModeSelect.value)"
+              >
                 <option value="none">None</option>
                 <option value="pen">Pen</option>
                 <option value="wand">Magic wand</option>
@@ -276,13 +285,37 @@
               Undo
             </button>
             <div class="field" *ngIf="drawingOptions.mode === 'pen'">
-              <label><input type="checkbox" [checked]="drawingOptions.penFill" (change)="handlePenFillChange(($event.target as HTMLInputElement).checked)" /> Pen fill</label>
+              <label>
+                <input
+                  #penFillCheckbox
+                  type="checkbox"
+                  [checked]="drawingOptions.penFill"
+                  (change)="handlePenFillChange(penFillCheckbox.checked)"
+                />
+                Pen fill
+              </label>
             </div>
             <div class="field" *ngIf="drawingOptions.mode === 'pen'">
-              <label><input type="checkbox" [checked]="drawingOptions.penErases" (change)="handlePenErasesChange(($event.target as HTMLInputElement).checked)" /> Pen erases</label>
+              <label>
+                <input
+                  #penErasesCheckbox
+                  type="checkbox"
+                  [checked]="drawingOptions.penErases"
+                  (change)="handlePenErasesChange(penErasesCheckbox.checked)"
+                />
+                Pen erases
+              </label>
             </div>
             <div class="field" *ngIf="drawingOptions.mode === 'wand'">
-              <label><input type="checkbox" [checked]="drawingOptions.magicWand2dOnly" (change)="handleMagicWand2dOnlyChange(($event.target as HTMLInputElement).checked)" /> 2D only</label>
+              <label>
+                <input
+                  #magicWand2dOnlyCheckbox
+                  type="checkbox"
+                  [checked]="drawingOptions.magicWand2dOnly"
+                  (change)="handleMagicWand2dOnlyChange(magicWand2dOnlyCheckbox.checked)"
+                />
+                2D only
+              </label>
             </div>
             <app-labeled-slider-with-input
               *ngIf="drawingOptions.mode === 'wand'"
@@ -357,7 +390,12 @@
       <h3>Remove volume</h3>
       <p>Are you sure you want to remove this volume?</p>
       <label class="checkbox-row">
-        <input type="checkbox" [checked]="skipRemoveConfirmation" (change)="skipRemoveConfirmation = ($event.target as HTMLInputElement).checked" />
+        <input
+          #removeDialogSkipCheckbox
+          type="checkbox"
+          [checked]="skipRemoveConfirmation"
+          (change)="skipRemoveConfirmation = removeDialogSkipCheckbox.checked"
+        />
         Don't ask me again
       </label>
       <div class="dialog-actions">
@@ -377,17 +415,19 @@
       <div class="field">
         <label>
           <input
+            #documentCheckbox
             type="checkbox"
             [checked]="saveState.document.enabled"
             [disabled]="!saveState.document.location.trim()"
-            (change)="handleDocumentCheckboxChange(($event.target as HTMLInputElement).checked)"
+            (change)="handleDocumentCheckboxChange(documentCheckbox.checked)"
           />
           {{ saveState.isDownloadMode ? 'Document filename' : 'Document path' }}
         </label>
         <input
+          #documentLocationInput
           type="text"
           [value]="saveState.document.location"
-          (input)="handleDocumentLocationChange(($event.target as HTMLInputElement).value)"
+          (input)="handleDocumentLocationChange(documentLocationInput.value)"
           placeholder="Enter location..."
         />
       </div>
@@ -396,16 +436,18 @@
         <div class="volume-row" *ngFor="let state of saveState.volumes; let idx = index">
           <label>
             <input
+              #volumeEnabledCheckbox
               type="checkbox"
               [checked]="state.enabled"
-              (change)="handleVolumeCheckboxChange(idx, ($event.target as HTMLInputElement).checked)"
+              (change)="handleVolumeCheckboxChange(idx, volumeEnabledCheckbox.checked)"
             />
             {{ nv.volumes[idx]?.name || ('Volume ' + (idx + 1)) }}
           </label>
           <input
+            #volumeUrlInput
             type="text"
             [value]="state.url"
-            (input)="handleVolumeUrlChange(idx, ($event.target as HTMLInputElement).value)"
+            (input)="handleVolumeUrlChange(idx, volumeUrlInput.value)"
             placeholder="{{ saveState.isDownloadMode ? 'Filename' : 'Server path' }}"
           />
         </div>
@@ -447,9 +489,10 @@
         <div class="field">
           <label>Crosshair color</label>
           <input
+            #crosshairColorInput
             type="color"
             [value]="crosshairColorHex"
-            (input)="handleCrosshairColorChange(($event.target as HTMLInputElement).value)"
+            (input)="handleCrosshairColorChange(crosshairColorInput.value)"
           />
         </div>
         <app-labeled-slider-with-input
@@ -462,11 +505,21 @@
           (valueChange)="handleOverlayOutlineWidthChange($event)"
         ></app-labeled-slider-with-input>
         <label class="checkbox-row">
-          <input type="checkbox" [checked]="viewerOptions.interpolateVoxels" (change)="handleInterpolateVoxelsChange(($event.target as HTMLInputElement).checked)" />
+          <input
+            #interpolateVoxelsCheckbox
+            type="checkbox"
+            [checked]="viewerOptions.interpolateVoxels"
+            (change)="handleInterpolateVoxelsChange(interpolateVoxelsCheckbox.checked)"
+          />
           Interpolate voxels
         </label>
         <label class="checkbox-row">
-          <input type="checkbox" [checked]="skipRemoveConfirmation" (change)="skipRemoveConfirmation = ($event.target as HTMLInputElement).checked" />
+          <input
+            #settingsSkipRemoveCheckbox
+            type="checkbox"
+            [checked]="skipRemoveConfirmation"
+            (change)="skipRemoveConfirmation = settingsSkipRemoveCheckbox.checked"
+          />
           Don't ask before removing volumes
         </label>
       </div>

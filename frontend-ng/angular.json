@@ -1,7 +1,6 @@
 {
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
-  "defaultProject": "frontend-ng",
   "newProjectRoot": "projects",
   "projects": {
     "frontend-ng": {
@@ -57,14 +56,16 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "browserTarget": "frontend-ng:build"
+            "buildTarget": "frontend-ng:build",
+            "host": "127.0.0.1",
+            "proxyConfig": "proxy.conf.json"
           },
           "configurations": {
             "development": {
-              "browserTarget": "frontend-ng:build:development"
+              "buildTarget": "frontend-ng:build:development"
             },
             "production": {
-              "browserTarget": "frontend-ng:build:production"
+              "buildTarget": "frontend-ng:build:production"
             }
           },
           "defaultConfiguration": "development"

@@ -672,7 +672,7 @@ export class FreebrowseComponent implements OnInit, AfterViewInit, OnDestroy {
 
     if (this.saveState.document.enabled && this.saveState.document.location.trim()) {
       try {
-        const jsonData: DocumentData = (this.nv.document?.jso ?? (await this.nv.saveScene())?.jso) as DocumentData;
+        const jsonData = this.nv.json() as DocumentData | undefined;
         if (!jsonData) {
           throw new Error('No document data available');
         }
@@ -855,7 +855,11 @@ export class FreebrowseComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     const volume = this.nv.volumes[volumeIndex];
     try {
-      const volumeData = (await this.nv.saveImage({ filename: '', volumeByIndex: volumeIndex })) as Uint8Array;
+      const volumeData = (await this.nv.saveImage({
+        filename: '',
+        isSaveDrawing: false,
+        volumeByIndex: volumeIndex,
+      })) as Uint8Array;
       const drawingImage = await this.nv.niftiArray2NVImage(volumeData);
       drawingImage.name = `${image.name}-drawing`;
       const loadSuccess = this.nv.loadDrawing(drawingImage);
@@ -878,7 +882,7 @@ export class FreebrowseComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     const volume = this.nv.volumes[volumeIndex];
     const background = this.nv.back;
-    if (!background) {
+    if (!volume || !background || !volume.hdr || !background.hdr) {
       return false;
     }
     const volDims = volume.hdr.dims;
@@ -952,19 +956,20 @@ export class FreebrowseComponent implements OnInit, AfterViewInit, OnDestroy {
     this.activeTab = 'drawing';
   }
 
-  handleDrawModeChange(mode: 'none' | 'pen' | 'wand'): void {
-    const penErases = mode === 'wand' ? false : this.drawingOptions.penErases;
+  handleDrawModeChange(mode: DrawingOptions['mode'] | string): void {
+    const nextMode: DrawingOptions['mode'] = mode === 'pen' || mode === 'wand' ? mode : 'none';
+    const penErases = nextMode === 'wand' ? false : this.drawingOptions.penErases;
     this.drawingOptions = {
       ...this.drawingOptions,
-      mode,
+      mode: nextMode,
       penErases,
     };
-    if (mode === 'pen') {
+    if (nextMode === 'pen') {
       const penValue = penErases ? 0 : this.drawingOptions.penValue;
       this.nv.setPenValue(penValue, this.drawingOptions.penFill);
       this.nv.setDrawingEnabled(true);
       this.nv.opts.clickToSegment = false;
-    } else if (mode === 'wand') {
+    } else if (nextMode === 'wand') {
       this.nv.setDrawingEnabled(true);
       this.nv.opts.clickToSegment = true;
       this.nv.opts.clickToSegmentIs2D = this.drawingOptions.magicWand2dOnly;
@@ -1003,6 +1008,10 @@ export class FreebrowseComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.drawingOptions.mode === 'pen' && !this.drawingOptions.penErases) {
       this.nv.setPenValue(value, this.drawingOptions.penFill);
     }
+  }
+
+  handleDrawingFilenameChange(filename: string): void {
+    this.drawingOptions = { ...this.drawingOptions, filename };
   }
 
   handleDrawingOpacityChange(opacity: number): void {

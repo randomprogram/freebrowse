@@ -4,3 +4,6 @@
 
 # Ignore the node_modules directory
 /node_modules
+frontend-ng/dist/
+frontend-ng/node_modules
+frontend-ng/.angular/
