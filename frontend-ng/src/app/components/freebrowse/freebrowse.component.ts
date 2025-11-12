@@ -203,11 +203,15 @@ export class FreebrowseComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // region frame state helpers
   private applyFrame4D(frameIndex: number): void {
-    const setter = (this.nv as any)?.setFrame4D;
-    if (typeof setter === 'function') {
-      setter.call(this.nv, frameIndex);
-      return;
+    const nVolumes = this.nv.volumes.length;
+    for (let i = 0; i < nVolumes; i++) {
+      this.nv.setFrame4D(this.nv.volumes[i].id, frameIndex);
     }
+    // const setter = (this.nv as any)?.setFrame4D;
+    // if (typeof setter === 'function') {
+    //   setter.call(this.nv, frameIndex);
+    //   return;
+    // }
     if (this.nv.scene) {
       (this.nv.scene as any).frame4D = frameIndex;
     }
@@ -542,6 +546,7 @@ export class FreebrowseComponent implements OnInit, AfterViewInit, OnDestroy {
       contrastMax: vol.cal_max ?? 100,
     }));
     this.images = loadedImages;
+    console.log('Updated images:', this.images);
     this.syncFrame4DState();
 
     if (this.nv.scene && this.nv.scene.crosshairPos) {
