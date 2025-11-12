@@ -7,3 +7,4 @@
 frontend-ng/dist/
 frontend-ng/node_modules
 frontend-ng/.angular/
+frontend-ng/node_modules/.package-lock.json
