@@ -1,0 +1,37 @@
+<div *ngIf="compact; else fullUploader" class="compact-uploader">
+  <button type="button" class="btn outline w-100" (click)="openFileDialog()">
+    Upload Images
+  </button>
+  <input
+    #fileInput
+    type="file"
+    multiple
+    class="hidden-input"
+    (change)="onFileChange($event)"
+  />
+</div>
+
+<ng-template #fullUploader>
+  <div
+    class="drop-zone"
+    [class.dragging]="isDragging"
+    (dragover)="onDragOver($event)"
+    (dragleave)="onDragLeave()"
+    (drop)="onDrop($event)"
+    (click)="openFileDialog()"
+  >
+    <div class="drop-zone__icon">📁</div>
+    <h3>Upload Medical Images</h3>
+    <p>Drag and drop NIfTI/GIfTI volumes, or click to browse</p>
+    <button type="button" class="btn solid" (click)="$event.stopPropagation(); openFileDialog()">
+      Select Files
+    </button>
+  </div>
+  <input
+    #fileInput
+    type="file"
+    multiple
+    class="hidden-input"
+    (change)="onFileChange($event)"
+  />
+</ng-template>

@@ -1,0 +1,478 @@
+<div class="freebrowse-shell">
+  <header class="app-header">
+    <div class="title-block">
+      <span class="icon">🧠</span>
+      <div>
+        <p class="title">FreeBrowse 2.0</p>
+        <p class="subtitle">NIfTI viewer powered by NiiVue</p>
+      </div>
+    </div>
+
+    <div class="selector-block">
+      <div class="selector">
+        <span class="label">View</span>
+        <app-view-selector
+          [currentView]="viewerOptions.viewMode"
+          (viewChange)="handleViewMode($event)"
+        ></app-view-selector>
+      </div>
+      <div class="selector">
+        <span class="label">Right drag</span>
+        <app-drag-mode-selector
+          [currentMode]="viewerOptions.dragMode"
+          [availableModes]="['contrast', 'pan']"
+          (modeChange)="handleDragModeChange($event)"
+        ></app-drag-mode-selector>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button type="button" (click)="loadViaNvd = !loadViaNvd" class="ghost">
+        {{ loadViaNvd ? 'loadDocument() on' : 'loadDocument() off' }}
+      </button>
+      <button type="button" (click)="sidebarOpen = !sidebarOpen" class="ghost">
+        {{ sidebarOpen ? 'Hide sidebar' : 'Show sidebar' }}
+      </button>
+      <button type="button" (click)="footerOpen = !footerOpen" class="ghost">
+        {{ footerOpen ? 'Hide footer' : 'Show footer' }}
+      </button>
+      <button type="button" (click)="settingsDialogOpen = true">
+        Settings
+      </button>
+      <button type="button" (click)="handleAddMoreFiles()" [disabled]="showUploader">
+        Add volumes
+      </button>
+      <button *ngIf="logoutUrl" type="button" class="ghost" (click)="handleLogout()">
+        Logout
+      </button>
+    </div>
+  </header>
+
+  <div class="app-body">
+    <section class="viewer" [class.viewer--uploader]="showUploader">
+      <ng-container *ngIf="showUploader; else viewerCanvas">
+        <app-image-uploader (upload)="handleFileUpload($event)"></app-image-uploader>
+      </ng-container>
+      <ng-template #viewerCanvas>
+        <app-image-canvas [nv]="nv" [viewMode]="viewerOptions.viewMode"></app-image-canvas>
+      </ng-template>
+    </section>
+
+    <aside class="sidebar" *ngIf="sidebarOpen">
+      <div class="tabs">
+        <button
+          *ngIf="!serverlessMode"
+          type="button"
+          [class.active]="activeTab === 'nvds'"
+          (click)="activeTab = 'nvds'"
+        >
+          Documents
+        </button>
+        <button
+          *ngIf="!serverlessMode"
+          type="button"
+          [class.active]="activeTab === 'data'"
+          (click)="activeTab = 'data'"
+        >
+          Imaging data
+        </button>
+        <button
+          type="button"
+          [class.active]="activeTab === 'sceneDetails'"
+          (click)="activeTab = 'sceneDetails'"
+        >
+          Scene details
+        </button>
+        <button
+          type="button"
+          [class.active]="activeTab === 'drawing'"
+          [disabled]="!drawingOptions.enabled"
+          (click)="activeTab = 'drawing'"
+        >
+          Drawing
+        </button>
+      </div>
+
+      <div class="tab-panel" [ngSwitch]="activeTab">
+        <div *ngSwitchCase="'nvds'" class="tab-section">
+          <h3>Niivue documents</h3>
+          <p>Load complete scenes and visualisations.</p>
+          <div class="list-container" *ngIf="configLoaded && !serverlessMode; else loadingState">
+            <app-file-list
+              endpoint="/nvd"
+              emptyMessage="No documents available."
+              (fileSelect)="handleNvdFileSelect($event)"
+            ></app-file-list>
+          </div>
+        </div>
+
+        <div *ngSwitchCase="'data'" class="tab-section">
+          <h3>Imaging data</h3>
+          <p>Add individual volumes to the current scene.</p>
+          <div class="list-container" *ngIf="configLoaded && !serverlessMode; else loadingState">
+            <app-file-list
+              endpoint="/imaging"
+              emptyMessage="No imaging files available."
+              (fileSelect)="handleImagingFileSelect($event)"
+            ></app-file-list>
+          </div>
+        </div>
+
+        <div *ngSwitchCase="'sceneDetails'" class="tab-section scene-details">
+          <h3>Scene details</h3>
+          <p>Manage loaded volumes, save scenes, and adjust rendering options.</p>
+
+          <div *ngIf="frame4DState.totalFrames > 1" class="section">
+            <app-labeled-slider-with-input
+              [label]="'4D Frame (' + (frame4DState.currentFrame + 1) + ' / ' + frame4DState.totalFrames + ')'"
+              [min]="1"
+              [max]="frame4DState.totalFrames"
+              [step]="1"
+              [decimalPlaces]="0"
+              [value]="frame4DState.currentFrame + 1"
+              (valueChange)="handleFrame4DChange($event - 1)"
+            ></app-labeled-slider-with-input>
+            <p class="hint">Navigate through each timepoint of 4D datasets.</p>
+          </div>
+
+          <div class="volume-list section">
+            <div *ngIf="images.length; else noImages">
+              <div
+                class="volume-item"
+                *ngFor="let image of images; let idx = index"
+                [class.active]="idx === currentImageIndex"
+                (click)="currentImageIndex = idx"
+              >
+                <button type="button" class="icon-btn" (click)="toggleImageVisibility(image.id); $event.stopPropagation()">
+                  {{ image.visible ? '👁️' : '🚫' }}
+                </button>
+                <div class="volume-name">{{ image.name }}</div>
+                <div class="volume-actions">
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    (click)="handleEditVolume(idx); $event.stopPropagation()"
+                    [disabled]="!canEditVolume(idx)"
+                    title="Edit as drawing"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    (click)="handleRemoveVolumeClick(idx); $event.stopPropagation()"
+                    title="Remove volume"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            </div>
+            <ng-template #noImages>
+              <div class="empty-state">No images loaded.</div>
+            </ng-template>
+          </div>
+
+          <div class="section action-buttons">
+            <button type="button" class="outline" (click)="handleAddMoreFiles()">Upload files</button>
+            <button
+              type="button"
+              class="outline"
+              (click)="handleCreateDrawingLayer()"
+              [disabled]="drawingOptions.enabled || images.length === 0"
+            >
+              Create drawing layer
+            </button>
+            <div class="split-actions">
+              <button
+                type="button"
+                class="outline"
+                (click)="handleSaveScene(false)"
+                [disabled]="images.length === 0 || drawingOptions.enabled || serverlessMode"
+              >
+                Save to server
+              </button>
+              <button
+                type="button"
+                class="outline"
+                (click)="handleSaveScene(true)"
+                [disabled]="images.length === 0 || drawingOptions.enabled"
+              >
+                Download scene
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="currentImageIndex !== null && images[currentImageIndex] as current" class="section">
+            <app-labeled-slider-with-input
+              label="Opacity"
+              [min]="0"
+              [max]="1"
+              [step]="0.01"
+              [value]="current.opacity"
+              (valueChange)="handleOpacityChange($event)"
+            ></app-labeled-slider-with-input>
+            <app-labeled-slider-with-input
+              label="Contrast min"
+              [min]="0"
+              [max]="255"
+              [step]="0.1"
+              [decimalPlaces]="1"
+              [value]="current.contrastMin"
+              (valueChange)="handleContrastMinChange($event)"
+            ></app-labeled-slider-with-input>
+            <app-labeled-slider-with-input
+              label="Contrast max"
+              [min]="0"
+              [max]="255"
+              [step]="0.1"
+              [decimalPlaces]="1"
+              [value]="current.contrastMax"
+              (valueChange)="handleContrastMaxChange($event)"
+            ></app-labeled-slider-with-input>
+            <div class="field">
+              <label>Colormap</label>
+              <select [value]="current.colormap" (change)="handleColormapChange(($event.target as HTMLSelectElement).value)">
+                <option *ngFor="let map of colormaps" [value]="map">{{ map }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div *ngSwitchCase="'drawing'" class="tab-section drawing">
+          <h3>Drawing tools</h3>
+          <p>Edit annotations on the loaded volumes.</p>
+          <div *ngIf="drawingOptions.enabled; else drawingEmpty" class="section">
+            <div class="field">
+              <label>Filename</label>
+              <input
+                type="text"
+                [value]="drawingOptions.filename"
+                (input)="drawingOptions = { ...drawingOptions, filename: ($event.target as HTMLInputElement).value }"
+              />
+            </div>
+            <app-labeled-slider-with-input
+              label="Drawing opacity"
+              [min]="0"
+              [max]="1"
+              [step]="0.01"
+              [value]="drawingOptions.opacity"
+              (valueChange)="handleDrawingOpacityChange($event)"
+            ></app-labeled-slider-with-input>
+            <div class="field">
+              <label>Draw mode</label>
+              <select [value]="drawingOptions.mode" (change)="handleDrawModeChange(($event.target as HTMLSelectElement).value as 'none' | 'pen' | 'wand')">
+                <option value="none">None</option>
+                <option value="pen">Pen</option>
+                <option value="wand">Magic wand</option>
+              </select>
+            </div>
+            <button
+              type="button"
+              class="outline"
+              *ngIf="drawingOptions.mode === 'pen' || drawingOptions.mode === 'wand'"
+              (click)="handleDrawUndo()"
+            >
+              Undo
+            </button>
+            <div class="field" *ngIf="drawingOptions.mode === 'pen'">
+              <label><input type="checkbox" [checked]="drawingOptions.penFill" (change)="handlePenFillChange(($event.target as HTMLInputElement).checked)" /> Pen fill</label>
+            </div>
+            <div class="field" *ngIf="drawingOptions.mode === 'pen'">
+              <label><input type="checkbox" [checked]="drawingOptions.penErases" (change)="handlePenErasesChange(($event.target as HTMLInputElement).checked)" /> Pen erases</label>
+            </div>
+            <div class="field" *ngIf="drawingOptions.mode === 'wand'">
+              <label><input type="checkbox" [checked]="drawingOptions.magicWand2dOnly" (change)="handleMagicWand2dOnlyChange(($event.target as HTMLInputElement).checked)" /> 2D only</label>
+            </div>
+            <app-labeled-slider-with-input
+              *ngIf="drawingOptions.mode === 'wand'"
+              label="Max distance (mm)"
+              [min]="2"
+              [max]="500"
+              [step]="1"
+              [value]="drawingOptions.magicWandMaxDistanceMM"
+              (valueChange)="handleMagicWandMaxDistanceChange($event)"
+            ></app-labeled-slider-with-input>
+            <app-labeled-slider-with-input
+              *ngIf="drawingOptions.mode === 'wand'"
+              label="Threshold percentage"
+              [min]="0"
+              [max]="1"
+              [step]="0.01"
+              [value]="drawingOptions.magicWandThresholdPercent"
+              (valueChange)="handleMagicWandThresholdChange($event)"
+            ></app-labeled-slider-with-input>
+            <app-labeled-slider-with-input
+              label="Pen value"
+              [min]="1"
+              [max]="255"
+              [step]="1"
+              [value]="drawingOptions.penValue"
+              [disabled]="drawingOptions.penErases"
+              (valueChange)="handlePenValueChange($event)"
+            ></app-labeled-slider-with-input>
+            <button type="button" class="outline" (click)="handleSaveDrawing()">Save drawing</button>
+          </div>
+          <ng-template #drawingEmpty>
+            <div class="empty-state">
+              No drawing layer active. Create one from the scene details tab.
+            </div>
+          </ng-template>
+        </div>
+
+        <ng-template #loadingState>
+          <div class="empty-state">Loading…</div>
+        </ng-template>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="app-footer" *ngIf="footerOpen">
+    <ng-container *ngIf="locationData; else footerEmpty">
+      <div class="coordinate-row">
+        <span class="label">RAS</span>
+        <span class="value">[
+          {{ locationData?.mm[0].toFixed(1) }},
+          {{ locationData?.mm[1].toFixed(1) }},
+          {{ locationData?.mm[2].toFixed(1) }}
+        ]
+        </span>
+      </div>
+      <div class="coordinate-row" *ngFor="let voxel of locationData?.voxels">
+        <span class="label">{{ voxel.name }}</span>
+        <span class="value">Voxel [{{ voxel.voxel[0] }}, {{ voxel.voxel[1] }}, {{ voxel.voxel[2] }}]</span>
+        <span class="value">Value {{ voxel.value | number:'1.0-2' }}</span>
+      </div>
+    </ng-container>
+    <ng-template #footerEmpty>
+      <div class="empty-state">Load images to see coordinates.</div>
+    </ng-template>
+  </footer>
+
+  <input type="file" #filePicker multiple hidden (change)="onAdditionalFilesSelected($event)" />
+
+  <!-- Remove dialog -->
+  <div class="dialog-backdrop" *ngIf="removeDialogOpen">
+    <div class="dialog">
+      <h3>Remove volume</h3>
+      <p>Are you sure you want to remove this volume?</p>
+      <label class="checkbox-row">
+        <input type="checkbox" [checked]="skipRemoveConfirmation" (change)="skipRemoveConfirmation = ($event.target as HTMLInputElement).checked" />
+        Don't ask me again
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" (click)="handleCancelRemove()">Cancel</button>
+        <button type="button" class="danger" (click)="handleConfirmRemove()">Remove</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save dialog -->
+  <div class="dialog-backdrop" *ngIf="saveDialogOpen">
+    <div class="dialog">
+      <h3>{{ saveState.isDownloadMode ? 'Download scene' : 'Save scene' }}</h3>
+      <p>
+        {{ saveState.isDownloadMode ? 'Select the files to download to your machine.' : 'Specify where to persist the scene on the server.' }}
+      </p>
+      <div class="field">
+        <label>
+          <input
+            type="checkbox"
+            [checked]="saveState.document.enabled"
+            [disabled]="!saveState.document.location.trim()"
+            (change)="handleDocumentCheckboxChange(($event.target as HTMLInputElement).checked)"
+          />
+          {{ saveState.isDownloadMode ? 'Document filename' : 'Document path' }}
+        </label>
+        <input
+          type="text"
+          [value]="saveState.document.location"
+          (input)="handleDocumentLocationChange(($event.target as HTMLInputElement).value)"
+          placeholder="Enter location..."
+        />
+      </div>
+      <div class="save-volume-list" *ngIf="saveState.volumes.length">
+        <p>Volumes to {{ saveState.isDownloadMode ? 'download' : 'save' }}:</p>
+        <div class="volume-row" *ngFor="let state of saveState.volumes; let idx = index">
+          <label>
+            <input
+              type="checkbox"
+              [checked]="state.enabled"
+              (change)="handleVolumeCheckboxChange(idx, ($event.target as HTMLInputElement).checked)"
+            />
+            {{ nv.volumes[idx]?.name || ('Volume ' + (idx + 1)) }}
+          </label>
+          <input
+            type="text"
+            [value]="state.url"
+            (input)="handleVolumeUrlChange(idx, ($event.target as HTMLInputElement).value)"
+            placeholder="{{ saveState.isDownloadMode ? 'Filename' : 'Server path' }}"
+          />
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" (click)="handleCancelSave()">Cancel</button>
+        <button
+          type="button"
+          [disabled]="isSaveActionDisabled"
+          (click)="handleConfirmSave()"
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings dialog -->
+  <div class="dialog-backdrop" *ngIf="settingsDialogOpen">
+    <div class="dialog">
+      <h3>Viewer settings</h3>
+      <div class="section">
+        <div class="field inline">
+          <label>Crosshair</label>
+          <button type="button" class="ghost" (click)="handleCrosshairVisibleChange(!viewerOptions.crosshairVisible)">
+            {{ viewerOptions.crosshairVisible ? 'Hide' : 'Show' }}
+          </button>
+        </div>
+        <app-labeled-slider-with-input
+          label="Width"
+          [min]="0"
+          [max]="5"
+          [step]="0.1"
+          [decimalPlaces]="1"
+          [value]="viewerOptions.crosshairWidth"
+          [disabled]="!viewerOptions.crosshairVisible"
+          (valueChange)="handleCrosshairWidthChange($event)"
+        ></app-labeled-slider-with-input>
+        <div class="field">
+          <label>Crosshair color</label>
+          <input
+            type="color"
+            [value]="crosshairColorHex"
+            (input)="handleCrosshairColorChange(($event.target as HTMLInputElement).value)"
+          />
+        </div>
+        <app-labeled-slider-with-input
+          label="Overlay outline width"
+          [min]="0"
+          [max]="2"
+          [step]="0.1"
+          [decimalPlaces]="1"
+          [value]="viewerOptions.overlayOutlineWidth"
+          (valueChange)="handleOverlayOutlineWidthChange($event)"
+        ></app-labeled-slider-with-input>
+        <label class="checkbox-row">
+          <input type="checkbox" [checked]="viewerOptions.interpolateVoxels" (change)="handleInterpolateVoxelsChange(($event.target as HTMLInputElement).checked)" />
+          Interpolate voxels
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" [checked]="skipRemoveConfirmation" (change)="skipRemoveConfirmation = ($event.target as HTMLInputElement).checked" />
+          Don't ask before removing volumes
+        </label>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" (click)="settingsDialogOpen = false">Close</button>
+      </div>
+    </div>
+  </div>
+</div>

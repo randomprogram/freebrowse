@@ -1,0 +1,10 @@
+<div class="drag-mode-selector">
+  <button
+    *ngFor="let mode of availableModes"
+    type="button"
+    [class.active]="mode === currentMode"
+    (click)="select(mode)"
+  >
+    {{ labelFor(mode) }}
+  </button>
+</div>

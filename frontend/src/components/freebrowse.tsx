@@ -138,6 +138,104 @@ export default function FreeBrowse() {
     }>;
   } | null>(null);
 
+  const [frame4DState, setFrame4DState] = useState({
+    totalFrames: 1,
+    currentFrame: 0,
+  });
+
+  const applyFrame4DToNiivue = useCallback((frameIndex: number) => {
+    const nvInstance = nvRef.current;
+    if (!nvInstance) return;
+    const setter = (nvInstance as any)?.setFrame4D;
+    if (typeof setter === "function") {
+      setter.call(nvInstance, frameIndex);
+    } else {
+      if (nvInstance.scene) {
+        (nvInstance.scene as any).frame4D = frameIndex;
+      }
+      if (typeof nvInstance.updateGLVolume === "function") {
+        nvInstance.updateGLVolume();
+      }
+    }
+  }, []);
+
+  const resolveVolumeFrameCount = useCallback((volume: any) => {
+    if (!volume) return 1;
+    const directCount = Number(volume?.nFrame4D);
+    if (Number.isFinite(directCount) && directCount > 0) {
+      return Math.floor(directCount);
+    }
+    const dims = volume?.hdr?.dims;
+    if (Array.isArray(dims) && dims.length > 4) {
+      const rawDim = Number(dims[4]);
+      if (Number.isFinite(rawDim) && rawDim > 0) {
+        return Math.floor(rawDim);
+      }
+    }
+    return 1;
+  }, []);
+
+  const syncFrame4DState = useCallback(() => {
+    const nvInstance = nvRef.current;
+    if (!nvInstance) return;
+
+    const maxFrames = nvInstance.volumes.reduce((max, volume) => {
+      return Math.max(max, resolveVolumeFrameCount(volume));
+    }, 1);
+
+    setFrame4DState((prev) => {
+      if (maxFrames <= 1) {
+        return prev.totalFrames === 1 && prev.currentFrame === 0
+          ? prev
+          : { totalFrames: 1, currentFrame: 0 };
+      }
+
+      const maxIndex = Math.max(0, maxFrames - 1);
+      const sceneFrame = (nvInstance.scene as any)?.frame4D;
+      const candidate =
+        typeof sceneFrame === "number" && !isNaN(sceneFrame)
+          ? sceneFrame
+          : prev.currentFrame;
+      const clampedFrame = Math.min(
+        Math.max(Math.round(candidate || 0), 0),
+        maxIndex,
+      );
+
+      applyFrame4DToNiivue(clampedFrame);
+
+      return {
+        totalFrames: maxFrames,
+        currentFrame: clampedFrame,
+      };
+    });
+  }, [applyFrame4DToNiivue, resolveVolumeFrameCount]);
+
+  const handleFrame4DChange = useCallback(
+    (value: number) => {
+      setFrame4DState((prev) => {
+        if (prev.totalFrames <= 1) {
+          return prev;
+        }
+        const maxIndex = Math.max(0, prev.totalFrames - 1);
+        const clampedValue = Math.min(
+          Math.max(Math.round(value), 0),
+          maxIndex,
+        );
+
+        if (clampedValue !== prev.currentFrame) {
+          applyFrame4DToNiivue(clampedValue);
+          return {
+            ...prev,
+            currentFrame: clampedValue,
+          };
+        }
+
+        return prev;
+      });
+    },
+    [applyFrame4DToNiivue],
+  );
+
   // Drawing-related state
   const [drawingOptions, setDrawingOptions] = useState({
     enabled: false,
@@ -374,6 +472,7 @@ export default function FreeBrowse() {
     // Clear React state before loading new document
     setImages([]);
     setCurrentImageIndex(null);
+    setFrame4DState({ totalFrames: 1, currentFrame: 0 });
 
     console.log("loadNvdData() -- jsonData: ", jsonData);
 
@@ -664,6 +763,7 @@ export default function FreeBrowse() {
         contrastMax: vol.cal_max ?? 100,
       }));
       setImages(loadedImages);
+      syncFrame4DState();
 
       console.log("updateImageDetails() loadedImages:", loadedImages);
 
@@ -1890,6 +1990,22 @@ export default function FreeBrowse() {
                     Manage volumes and adjust properties
                   </p>
                 </div>
+                {frame4DState.totalFrames > 1 && (
+                  <div className="border-b px-4 py-3">
+                    <LabeledSliderWithInput
+                      label={`4D Frame (${frame4DState.currentFrame + 1} / ${frame4DState.totalFrames})`}
+                      value={frame4DState.currentFrame + 1}
+                      onValueChange={(value) => handleFrame4DChange(value - 1)}
+                      min={1}
+                      max={frame4DState.totalFrames}
+                      step={1}
+                      decimalPlaces={0}
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Navigate through each 3D volume along the 4th dimension.
+                    </p>
+                  </div>
+                )}
                 <div className="flex flex-col h-full">
                   <ScrollArea className="max-h-[50%] min-h-0">
                     {images.length > 0 ? (

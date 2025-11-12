@@ -1,0 +1,40 @@
+:root {
+  color-scheme: dark;
+  --bg: #0f1014;
+  --bg-panel: #171821;
+  --border: #252737;
+  --text: #f7f7f7;
+  --muted: #9ea3b7;
+  --accent: #5b8def;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.full-height {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}

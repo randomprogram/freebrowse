@@ -1,0 +1,30 @@
+<div class="breadcrumbs">
+  <ng-container *ngFor="let crumb of breadcrumbs; let i = index">
+    <span *ngIf="i > 0" class="sep">/</span>
+    <button
+      type="button"
+      [disabled]="i === breadcrumbs.length - 1"
+      (click)="navigateTo(crumb.path)"
+    >
+      {{ crumb.label || 'Root' }}
+    </button>
+  </ng-container>
+</div>
+
+<div *ngIf="loading" class="status">Loading list…</div>
+<div *ngIf="error" class="status error">{{ error }}</div>
+
+<ul *ngIf="!loading && !error && (directories.length || files.length)" class="entry-list">
+  <li *ngFor="let dir of directories" (click)="navigateTo(dir.path)">
+    <span class="icon">📂</span>
+    <span class="label">{{ dir.name }}</span>
+  </li>
+  <li *ngFor="let file of files" (click)="selectFile(file)">
+    <span class="icon">📄</span>
+    <span class="label">{{ fileLabel(file) }}</span>
+  </li>
+</ul>
+
+<p *ngIf="!loading && !error && !directories.length && !files.length" class="status">
+  {{ emptyMessage }}
+</p>

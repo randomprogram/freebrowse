@@ -1,0 +1,11 @@
+<div class="view-selector">
+  <button
+    *ngFor="let option of options"
+    type="button"
+    [class.active]="option.value === currentView"
+    (click)="select(option)"
+  >
+    <img *ngIf="option.icon" [src]="option.icon" [alt]="option.label" />
+    <span>{{ option.label }}</span>
+  </button>
+</div>

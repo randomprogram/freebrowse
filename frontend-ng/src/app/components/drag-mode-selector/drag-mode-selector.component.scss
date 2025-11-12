@@ -1,0 +1,19 @@
+.drag-mode-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+
+  button {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 0.25rem 0.6rem;
+    color: var(--muted);
+    cursor: pointer;
+
+    &.active {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+  }
+}

@@ -1,0 +1,9 @@
+<div class="niivue-canvas">
+  <canvas #canvasEl></canvas>
+  <div *ngIf="showLabel" class="view-label">
+    {{ viewMode }} view
+  </div>
+  <div *ngIf="!imageLoaded" class="loading">
+    Loading image...
+  </div>
+</div>
